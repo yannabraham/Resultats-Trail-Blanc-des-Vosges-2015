@@ -1,0 +1,222 @@
+<html>
+  <meta charset="utf-8">
+  <title>Resultats Trail Blanc des Vosges 2015</title>
+  <script type="text/javascript" src="d3/d3.js"></script>
+  <style>
+    .axis path {
+      fill: none;
+      stroke: black;
+    }
+
+    .axis {
+      font-size: 8pt;
+      font-family: sans-serif;
+    }
+
+    .tick {
+      fill: none;
+      stroke: black
+    }
+
+    circle {
+      stroke: Grey;
+      stroke-width: 0.5px;
+      fill: Grey;
+      opacity: 0.6;
+    }
+
+    circle.M {
+      fill: blue;
+    }
+
+    circle.F {
+      fill: pink;
+      opacity: 0.9;
+    }
+  </style>
+  <body>
+    <h1>Resultats Trail Blanc des Vosges 2015</h1>
+    <p><a href='http://www.courirsurdeslegendes.fr/evenements/trail-blanc-des-vosges/'>Trail Blanc des Vosges</a></p>
+    <div id='search'>
+      <p>Pour chercher un nom, taper les premieres lettres; pour effacer,
+        utiliser la touche <i>Esc</i>
+      </p>
+    </div>
+    <div id='chart'></div>
+  </body>
+  <script>
+    // using tricks from
+    //    http://bl.ocks.org/mbostock/3048166
+    //    http://bost.ocks.org/mike/nations/
+    //    http://www.dustindiaz.com/autocomplete-fuzzy-matching
+    //    http://www.dwuser.com/education/content/the-basics-of-overlaying-content/
+    var margins = {top: 15, right: 60, bottom: 25, left: 65},
+        width = 960 - margins.right,
+        height = 500 - margins.top - margins.bottom;
+    var svg = d3.select('#chart').append('svg')
+        .attr('width',width+margins.left+margins.right)
+        .attr('height',height+margins.top+margins.bottom)
+      .append('g')
+        .attr('transform','translate('+margins.left+','+margins.top+')')
+    var formatTime = d3.time.format('%H:%M:%S'),
+        formatSeconds = function(d) {
+          return formatTime(new Date(2015,1,1,0,0,d))
+        }
+    var data,
+        names,
+        dots,
+        xScale,
+        yScale;
+    waterfall = function(rows) {
+      // clean up rows
+      data=rows.map(function(d) {
+          d.Classement_Scratch = +d.Classement_Scratch;
+          d.Classement_Categorie = +d.Classement_Categorie;
+          // d.Temps va rester une chaine de caracteres pour le moment,
+          // mais je vais la convertir en seconds pour simplifer le premier graph
+          var temps = d.Temps.split(':');
+          d.dTemps = (+temps[0])*60*60+(+temps[1])*60+(+temps[2]);
+          // d.Vitesse
+          d.Vitesse = +d.Vitesse;
+          d.Dossard = +d.Dossard;
+          d.uid = 'id'+d.Dossard;
+          return(d)
+        }
+      );
+      // get all names out
+      names = data.map(function(d) {
+          return(d.Nom);
+        }
+      )
+      // show me how many lines have been loaded?
+      console.log(data.length)
+      // define x axis
+      xScale = d3.scale.linear()
+        .domain(d3.extent(data.map(function(d) { return(d.Classement_Scratch);})))
+        .range([0,width]);
+      var xAxis = d3.svg.axis().scale(xScale);
+      svg.append('g')
+        .attr('class','x axis')
+        .attr('transform','translate(0,'+height+')')
+        .call(xAxis);
+      // define y axis
+      yScale = d3.scale.linear()
+        .domain(d3.extent(data.map(function(d) { return(d.dTemps);})))
+        .range([height,0]);
+      var yAxis = d3.svg.axis()
+        .orient('left')
+        .scale(yScale)
+        .tickFormat(formatSeconds);
+      svg.append('g')
+        .attr('class','y axis')
+        .call(yAxis);
+      // add points
+      dots = svg.append('g')
+        .selectAll('.circle')
+        .data(data)
+        .enter().append('circle')
+          .attr('class',function(d) {return(d.Sexe);})
+          .attr('id',function(d) {return(d.uid);})
+          .attr('cx',function(d) {return(xScale(d.Classement_Scratch));})
+          .attr('cy',function(d) {return(yScale(d.dTemps))})
+          .attr('r',3)
+          .on('mouseover',function(d) { // add name on mouse over
+              d3.select('circle#'+d.uid)
+                .transition()
+                .duration(300)
+                  .attr('r',5);
+              d3.select('text#'+d.uid).remove()
+              svg.append('text')
+                .text(d.Nom)
+                .attr('x',xScale(d.Classement_Scratch)+10)
+                .attr('y',yScale(d.dTemps)+5)
+                .attr('id',d.uid)
+            }
+          )
+          .on('mouseout',function(d) {
+              d3.select('circle#'+d.uid)
+                .transition()
+                .duration(500)
+                  .attr('r',3);
+              d3.select('text#'+d.uid)
+                .transition()
+                .duration(500)
+                  .style('opacity',0)
+                  .remove();
+
+            }
+          );
+    }
+    // render the data
+    d3.tsv('/Resultats-Trail-Blanc-des-Vosges-2015-clean.tsv',waterfall);
+    // add a search function
+    function matchPeople(input) {
+      var reg = new RegExp(input.split('').join('\\w*').replace(/\W/, ""), 'i');
+      return names.filter(function(person) {
+        if (person.match(reg)) {
+          return person;
+        }
+      });
+    }
+    // show names upon typing
+    var curText = new String,
+        curData = new Array;
+    d3.select('body')
+      .on('keydown',function() {
+        if(curData.length>0) {
+          curData.map(function(d) {
+              d3.select('text#'+d.uid)
+                .transition()
+                .duration(500)
+                  .style('opacity',0)
+                  .remove();
+              d3.select('circle#'+d.uid)
+                .style('fill',null)
+                .attr('r',3);
+            }
+          );
+        }
+        var curKey = d3.event.keyCode;
+        if(curKey===27) {
+          curText = new String;
+          d3.select('#search').select('p').remove();
+          d3.select('#search').append('p')
+            .html('Pour chercher un nom, taper les premieres lettres; pour effacer,utiliser la touche <i>Esc</i>')
+        } else {
+          curText += String.fromCharCode(curKey);
+          var curPeople = matchPeople(curText);
+          if(curPeople.length<=10) {
+            //give feedback
+            //console.log(matchPeople(curText));
+            d3.select('#search').select('p').remove();
+            d3.select('#search')
+              .append('p')
+                .text(curPeople.length+' correspondances pour le texte '+curText);
+            // filter data
+            curData = data.filter(function(d) {
+              return(curPeople.indexOf(d.Nom)>-1);
+              }
+            );
+            curData.map(function(d) {
+                d3.select('#'+d.uid)
+                  .attr('r',5)
+                  .style('fill','lightgreen');
+                d3.select('text#'+d.uid).remove()
+                svg.append('text')
+                  .text(d.Nom+', '+d.Classement_Scratch+'eme en '+formatSeconds(d.dTemps))
+                  .attr('x',xScale(d.Classement_Scratch)+10)
+                  .attr('y',yScale(d.dTemps)+5)
+                  .attr('id',d.uid)
+              }
+            );
+          } else {
+            //console.log('more than 10 names found for '+curText)
+            d3.select('#search').select('p').remove();
+            d3.select('#search')
+              .append('p')
+                .text('Plus de 10 correspondances trouvees pour le texte '+curText);
+          }
+        }
+      });
+  </script>
+</html>

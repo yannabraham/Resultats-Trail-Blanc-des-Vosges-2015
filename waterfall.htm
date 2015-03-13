@@ -148,7 +148,7 @@
           );
     }
     // render the data
-    d3.tsv('/Resultats-Trail-Blanc-des-Vosges-2015-clean.tsv',waterfall);
+    d3.tsv('Resultats-Trail-Blanc-des-Vosges-2015-clean.tsv',waterfall);
     // add a search function
     function matchPeople(input) {
       var reg = new RegExp(input.split('').join('\\w*').replace(/\W/, ""), 'i');
